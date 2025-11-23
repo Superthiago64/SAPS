@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SAPS - Tienda Oficial</title>
     
-    <!-- 1. MOTORES BLINDADOS (No borrar) -->
+    <!-- 1. MOTORES BLINDADOS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -15,20 +15,17 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .animate-fade { animation: fadeIn 0.5s ease-out; }
         body { font-family: sans-serif; -webkit-font-smoothing: antialiased; }
-        .drawer-enter { transform: translateX(-100%); }
-        .drawer-enter-active { transform: translateX(0); transition: transform 300ms; }
-        .drawer-exit { transform: translateX(-100%); transition: transform 300ms; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
     <div id="root"></div>
 
-    <!-- 2. CONEXIÓN A LA NUBE (FIREBASE V11) -->
+    <!-- 2. CONEXIÓN A FIREBASE -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, where, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
-        // --- TUS LLAVES SECRETAS DE SAPS ---
+        // TUS LLAVES REALES
         const firebaseConfig = {
             apiKey: "AIzaSyBw7Why01fSbNOrUM7OJiRp4McIOKrstys",
             authDomain: "saps-1d284.firebaseapp.com",
@@ -39,247 +36,279 @@
             measurementId: "G-JLB9FZ3N8Z"
         };
 
-        // Inicializamos la conexión
         let db = null;
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
-            console.log("¡Conectado a la Nube SAPS!");
+            console.log("✅ Conectado a Firebase");
         } catch (e) {
-            console.error("Error conectando Firebase:", e);
+            console.error("❌ Error Firebase:", e);
         }
 
-        // Guardamos para usar en la App
-        window.miNube = { db, collection, addDoc, onSnapshot, query, orderBy };
+        window.miNube = { db, collection, addDoc, onSnapshot, query, orderBy, where, deleteDoc, doc };
     </script>
 
-    <!-- 3. APP SAPS (Lógica) -->
+    <!-- 3. LÓGICA DE LA APP -->
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // --- ÍCONOS SVG ---
-        const IconCart = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>;
-        const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
-        const IconMenu = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>;
-        const IconBot = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>;
-        const IconX = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
-        const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
-        const IconUser = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-        const IconGift = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>;
-        const IconPackage = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>;
-        const IconMoney = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>;
-        const IconCreditCard = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
+        // ÍCONOS SVG
+        const Icon = ({ path, size=24, className="" }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{__html: path}}></svg>;
+        
+        const paths = {
+            cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+            search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+            menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+            bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+            x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+            send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+            user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+            gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>',
+            package: '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+            card: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+            money: '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01"/><path d="M18 12h.01"/>',
+            star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+            back: '<path d="m15 18-6-6 6-6"/>',
+            trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>'
+        };
 
         function App() {
-            const [user, setUser] = useState(null); 
-            const [view, setView] = useState('home'); 
+            const [user, setUser] = useState(null);
+            const [view, setView] = useState('login'); 
             const [cart, setCart] = useState([]);
             const [search, setSearch] = useState('');
             const [menuOpen, setMenuOpen] = useState(false);
             const [usersDb, setUsersDb] = useState([]);
-            
-            // IA & Productos Nube
-            const [aiOpen, setAiOpen] = useState(false);
-            const [aiMsg, setAiMsg] = useState([{role:'sys', text:'¡Hola! Soy SAPS Bot.'}]);
-            const [aiIn, setAiIn] = useState('');
             const [products, setProducts] = useState([]);
+            const [orders, setOrders] = useState([]);
+            const [reviews, setReviews] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [selectedProduct, setSelectedProduct] = useState(null);
+            const [uploadingImg, setUploadingImg] = useState(null);
 
-            // Checkout
-            const countries = { "México": ["CDMX", "Jalisco", "Nuevo León"], "USA": ["California", "Texas"], "Colombia": ["Bogotá"], "España": ["Madrid"] };
-            const [checkout, setCheckout] = useState({ country: '', state: '', address: '', method: 'card', name: '' });
+            const [aiOpen, setAiOpen] = useState(false);
+            const [aiMsg, setAiMsg] = useState([{role:'sys', text:'¡Hola! Soy la IA de SAPS.'}]);
+            const [aiIn, setAiIn] = useState('');
+            const [checkout, setCheckout] = useState({ country: '', state: '', address: '', method: 'card', store: '', name: '', cardNum: '', cardCvv: '' });
+            const [newReview, setNewReview] = useState({ text: '', stars: 5 });
 
-            // --- CARGAR DATOS (NUBE O LOCAL) ---
+            const countriesData = { "México": ["CDMX", "Jalisco", "Nuevo León"], "USA": ["California", "Texas"], "Colombia": ["Bogotá"], "España": ["Madrid"] };
+
+            // --- CARGA DE DATOS ---
             useEffect(() => {
-                // Cargar sesión guardada
+                const udb = localStorage.getItem('saps_users_db');
+                if(udb) setUsersDb(JSON.parse(udb));
+
                 const u = localStorage.getItem('saps_u');
-                if(u) setUser(JSON.parse(u));
+                if(u) { setUser(JSON.parse(u)); setView('home'); }
 
-                // Cargar base de datos de usuarios (simulada local)
-                const dbUsers = localStorage.getItem('saps_users_db');
-                if(dbUsers) setUsersDb(JSON.parse(dbUsers));
-
-                const { db, collection, onSnapshot, query, orderBy } = window.miNube || {};
-                
+                const { db, collection, onSnapshot } = window.miNube || {};
                 if (db) {
-                    const q = query(collection(db, "productos"), orderBy("fecha", "desc"));
-                    const unsubscribe = onSnapshot(q, (snapshot) => {
-                        const prod = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        setProducts(prod);
-                        setLoading(false);
-                    }, (error) => {
-                        console.error("Error leyendo productos:", error);
+                    // PRODUCTOS: Ordenados localmente
+                    const unsub = onSnapshot(collection(db, "productos"), (snap) => {
+                        const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        list.sort((a, b) => b.fecha - a.fecha);
+                        setProducts(list);
                         setLoading(false);
                     });
-                    return () => unsubscribe();
+                    return () => unsub();
                 } else {
-                    setProducts([
-                        { id: 1, name: 'Audífonos Pro (Demo)', price: 1200, img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400', seller: 'SAPS', discount: false },
-                        { id: 2, name: 'Tenis Runner (Demo)', price: 850, img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400', seller: 'SAPS', discount: true }
-                    ]);
+                    setProducts([]);
                     setLoading(false);
                 }
             }, []);
 
-            // --- FUNCIONES ---
+            // Pedidos (Filtrados localmente)
+            useEffect(() => {
+                const { db, collection, onSnapshot } = window.miNube || {};
+                if (db && user) {
+                    const unsub = onSnapshot(collection(db, "pedidos"), (snap) => {
+                        let list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        list = list.filter(o => o.userEmail === user.email);
+                        list.sort((a, b) => b.fecha - a.fecha);
+                        setOrders(list);
+                    });
+                    return () => unsub();
+                } else { setOrders([]); }
+            }, [user]);
+
+            // Reseñas (Filtradas localmente)
+            useEffect(() => {
+                const { db, collection, onSnapshot } = window.miNube || {};
+                if (db && selectedProduct) {
+                    const unsub = onSnapshot(collection(db, "reviews"), (snap) => {
+                        let list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        list = list.filter(r => r.productId === selectedProduct.id);
+                        list.sort((a, b) => b.fecha - a.fecha);
+                        setReviews(list);
+                    });
+                    return () => unsub();
+                } else { setReviews([]); }
+            }, [selectedProduct]);
+
+            // FUNCIONES
             const login = (e) => {
                 e.preventDefault();
-                const email = e.target.email.value;
-                const pass = e.target.pass.value;
-                
-                // Buscar usuario real en la base de datos local
-                const foundUser = usersDb.find(u => u.email === email && u.pass === pass);
-
-                if(foundUser) {
-                    setUser(foundUser); 
-                    localStorage.setItem('saps_u', JSON.stringify(foundUser)); 
-                    setView('home');
-                } else {
-                    alert('⚠️ No encontramos una cuenta con esos datos. Por favor regístrate.');
-                    setView('register');
-                }
+                const found = usersDb.find(u => u.email === e.target.email.value && u.pass === e.target.pass.value);
+                if(found) { setUser(found); localStorage.setItem('saps_u', JSON.stringify(found)); setView('home'); } 
+                else { alert('⚠️ Cuenta no encontrada. Regístrate.'); setView('register'); }
             };
 
             const register = (e) => {
                 e.preventDefault();
-                const newUser = { 
-                    name: e.target.name.value, 
-                    email: e.target.email.value, 
-                    pass: e.target.pass.value,
-                    addr: 'Dirección Guardada'
-                };
-                
+                const newUser = { name: e.target.name.value, email: e.target.email.value, pass: e.target.pass.value };
                 const newDb = [...usersDb, newUser];
-                setUsersDb(newDb); 
-                localStorage.setItem('saps_users_db', JSON.stringify(newDb));
-                
-                alert('¡Cuenta creada con éxito! Ahora puedes iniciar sesión.'); 
-                setView('login');
+                setUsersDb(newDb); localStorage.setItem('saps_users_db', JSON.stringify(newDb));
+                alert('¡Cuenta creada!'); setView('login');
             };
 
-            const logout = () => { setUser(null); localStorage.removeItem('saps_u'); setView('home'); setMenuOpen(false); };
-            const addCart = (p) => { setCart([...cart, p]); alert(`Agregado: ${p.name}`); };
+            const logout = () => { setUser(null); localStorage.removeItem('saps_u'); setView('login'); setMenuOpen(false); };
+            const addCart = (e, p) => { e.stopPropagation(); setCart([...cart, p]); alert(`Agregado: ${p.name}`); };
+            const openProduct = (p) => { setSelectedProduct(p); setView('product'); };
             
-            const pay = (e) => {
-                e.preventDefault();
-                const client = user ? user.name : checkout.name;
-                if(!client) return alert("Por favor ingresa tu nombre.");
-                
-                if(checkout.method === 'card' && (!checkout.cardNum || !checkout.cardCvv)) {
-                    return alert('Por favor completa los datos de la tarjeta.');
-                }
-
-                alert(`¡Pedido Confirmado para ${client}!\nEnviando a: ${checkout.address}\nPago con: ${checkout.method === 'card' ? 'Tarjeta' : 'Efectivo'}`);
-                setCart([]); setView('home');
-            };
-
-            const sendAi = (e) => {
-                e.preventDefault(); if(!aiIn) return;
-                const msgs = [...aiMsg, {role:'user', text:aiIn}];
-                setAiMsg(msgs); setAiIn('');
-                setTimeout(() => setAiMsg([...msgs, {role:'sys', text:'Buscando en el catálogo...'}]), 800);
-            };
-
-            const tryToSell = () => {
-                if(user) {
-                    setView('sell');
-                } else {
-                    alert('🔒 Para vender, necesitas iniciar sesión o registrarte.');
-                    setView('login');
-                }
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = new Image();
+                    img.src = ev.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const scale = 500 / img.width;
+                        canvas.width = 500; canvas.height = img.height * scale;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        setUploadingImg(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                };
+                reader.readAsDataURL(file);
             };
 
             const publish = async (e) => {
                 e.preventDefault();
-                if(!user) return alert("Debes iniciar sesión.");
-                
+                if(!user) return alert("Inicia sesión.");
                 const { db, collection, addDoc } = window.miNube || {};
-                const newProd = {
-                    name: e.target.name.value, 
-                    price: Number(e.target.price.value), 
-                    img: e.target.img.value || 'https://via.placeholder.com/150', 
-                    seller: user.name,
-                    fecha: Date.now(),
-                    discount: false
+                const p = {
+                    name: e.target.name.value, price: Number(e.target.price.value),
+                    description: e.target.description.value, stock: Number(e.target.stock.value),
+                    discount: e.target.discount.checked, img: uploadingImg || 'https://via.placeholder.com/150',
+                    seller: user.name, sellerEmail: user.email, fecha: Date.now()
                 };
-
                 if (db) {
-                    try {
-                        await addDoc(collection(db, "productos"), newProd);
-                        alert('¡Publicado al mundo! 🌍');
-                        setView('home');
-                    } catch (err) { 
-                        console.error(err);
-                        alert('Error subiendo: ' + err.message); 
+                    try { await addDoc(collection(db, "productos"), p); alert('¡Publicado! ☁️'); setView('home'); } 
+                    catch(e) { alert('Error: ' + e.message); }
+                } else { alert('Error conexión'); }
+            };
+
+            // --- FUNCIÓN BORRAR (CON CANDADO DE SEGURIDAD) ---
+            const deleteProduct = async (e, prod) => {
+                e.stopPropagation();
+                
+                // Candado: Si el email del producto NO es el mismo que el mío, bloqueo.
+                if(user.email !== prod.sellerEmail) {
+                    return alert("⛔ No puedes borrar productos que no son tuyos.");
+                }
+
+                if(!confirm("¿Borrar tu producto?")) return;
+                
+                const { db, deleteDoc, doc } = window.miNube || {};
+                if(db) {
+                    try { 
+                        await deleteDoc(doc(db, "productos", prod.id)); 
+                        alert("Eliminado correctamente"); 
+                        if(view === 'product') setView('home');
                     }
-                } else {
-                    alert('Modo Demo: Producto agregado solo localmente.');
-                    setProducts([newProd, ...products]);
-                    setView('home');
+                    catch(err) { alert("Error al borrar: " + err.message); }
                 }
             };
 
-            const Logo = () => <div onClick={()=>setView('home')} className="text-2xl font-black cursor-pointer select-none flex"><span className="text-green-600">S</span><span className="text-blue-600">A</span><span className="text-yellow-500">P</span><span className="text-red-600">S</span></div>;
+            const submitReview = async (e) => {
+                e.preventDefault();
+                if(!user) return alert("Inicia sesión.");
+                const { db, collection, addDoc } = window.miNube || {};
+                if(db) {
+                    await addDoc(collection(db, "reviews"), {
+                        productId: selectedProduct.id, user: user.name, text: newReview.text, stars: newReview.stars, fecha: Date.now()
+                    });
+                    setNewReview({ text: '', stars: 5 });
+                }
+            };
 
-            // --- VISTAS ---
+            const pay = async (e) => {
+                e.preventDefault();
+                const clientName = user ? user.name : checkout.name;
+                if(!clientName) return alert('Pon tu nombre.');
+                if(checkout.method === 'card' && !checkout.cardNum) return alert('Faltan datos.');
+                
+                const reference = checkout.method === 'cash' ? `${checkout.store?.toUpperCase()}-${Math.floor(1000+Math.random()*9000)}` : 'TARJETA-APROBADA';
+                const total = cart.reduce((a,b)=>a+b.price,0);
+                const newOrder = { userEmail: user ? user.email : 'guest', clientName, items: cart, total, address: checkout.address, method: checkout.method, store: checkout.store || '', reference, fecha: Date.now() };
+
+                const { db, collection, addDoc } = window.miNube || {};
+                if(db && user) { await addDoc(collection(db, "pedidos"), newOrder); }
+
+                alert(`¡Pedido Creado!\nRef: ${reference}`);
+                setCart([]); 
+                if(user) setView('orders'); else setView('home');
+            };
+
+            const sendAi = (e) => { e.preventDefault(); if(!aiIn) return; setAiMsg([...aiMsg, {role:'user', text:aiIn}, {role:'sys', text:'Buscando...'}]); setAiIn(''); };
+            const Logo = () => <div onClick={()=>setView('home')} className="text-2xl font-black cursor-pointer flex"><span className="text-green-600">S</span><span className="text-blue-600">A</span><span className="text-yellow-500">P</span><span className="text-red-600">S</span></div>;
+
+            const tryToSell = () => { if(user) { setView('sell'); } else { alert('🔒 Inicia sesión para vender.'); setView('login'); } };
+
+            // VISTAS
             if(view === 'login') return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-sm animate-fade"><div className="flex justify-center mb-6"><Logo/></div><h2 className="text-center font-bold text-xl mb-4">Ingresar a SAPS</h2><form onSubmit={login} className="space-y-4"><input name="email" placeholder="Correo Electrónico" className="w-full border p-2 rounded" required /><input name="pass" type="password" placeholder="Contraseña" className="w-full border p-2 rounded" required /><button className="w-full bg-yellow-400 py-2 rounded font-bold hover:bg-yellow-500 transition">Entrar</button></form><button onClick={()=>setView('register')} className="w-full mt-4 text-blue-600 text-sm font-medium">¿No tienes cuenta? Regístrate aquí</button><button onClick={()=>setView('home')} className="w-full mt-2 text-gray-500 text-sm underline">Entrar como invitado</button></div></div>
+                <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded shadow w-full max-w-sm animate-fade"><div className="flex justify-center mb-6"><Logo/></div><h2 className="text-center font-bold text-xl mb-4">Ingresar</h2><form onSubmit={login} className="space-y-4"><input name="email" placeholder="Correo" className="w-full border p-2 rounded" required/><input name="pass" type="password" placeholder="Contraseña" className="w-full border p-2 rounded" required/><button className="w-full bg-yellow-400 py-2 rounded font-bold hover:bg-yellow-500 transition">Entrar</button></form><button onClick={()=>setView('register')} className="w-full mt-4 text-blue-600 text-sm font-bold border border-blue-600 rounded p-2 hover:bg-blue-50">Crear Cuenta Nueva</button><button onClick={()=>setView('home')} className="w-full mt-2 text-gray-400 text-xs underline">Entrar como Invitado</button></div></div>
             );
-
             if(view === 'register') return (
-                <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-sm animate-fade"><div className="flex justify-center mb-6"><Logo/></div><h2 className="text-center font-bold text-xl mb-4">Crear Cuenta Nueva</h2><form onSubmit={register} className="space-y-3"><input name="name" placeholder="Tu Nombre Completo" className="w-full border p-2 rounded" required /><input name="email" placeholder="Correo Electrónico" className="w-full border p-2 rounded" required /><input name="pass" type="password" placeholder="Contraseña" className="w-full border p-2 rounded" required /><button className="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700 transition">Registrarme</button></form><button onClick={()=>setView('login')} className="w-full mt-4 text-blue-600 text-sm">¿Ya tienes cuenta? Inicia sesión</button></div></div>
+                <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4"><div className="bg-white p-8 rounded shadow w-full max-w-sm animate-fade"><div className="flex justify-center mb-6"><Logo/></div><h2 className="text-center font-bold text-xl mb-4">Registro</h2><form onSubmit={register} className="space-y-3"><input name="name" placeholder="Nombre" className="w-full border p-2 rounded" required/><input name="email" placeholder="Correo" className="w-full border p-2 rounded" required/><input name="pass" type="password" placeholder="Contraseña" className="w-full border p-2 rounded" required/><button className="w-full bg-green-600 text-white py-2 rounded font-bold">Registrarme</button></form><button onClick={()=>setView('login')} className="w-full mt-4 text-blue-600 text-sm">Volver al login</button></div></div>
             );
 
             return (
                 <div className="min-h-screen flex flex-col font-sans bg-gray-50">
-                    <header className="bg-gray-900 text-white sticky top-0 z-50 shadow-md">
+                    <header className="bg-gray-900 text-white sticky top-0 z-50 shadow">
                         <div className="p-3 container mx-auto flex justify-between items-center gap-2">
-                            <div className="flex items-center gap-2"><button onClick={()=>setMenuOpen(!menuOpen)} className="p-1 hover:bg-gray-800 rounded"><IconMenu/></button><Logo/></div>
-                            <div className="hidden md:flex flex-1 mx-4 relative"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar..." className="w-full p-2 rounded text-black outline-none"/><span className="absolute right-2 top-2 text-gray-500"><IconSearch/></span></div>
+                            <div className="flex items-center gap-2"><button onClick={()=>setMenuOpen(true)} className="text-white hover:text-yellow-400 transition"><Icon path={paths.menu}/></button><Logo/></div>
+                            <div className="hidden md:flex flex-1 mx-4 relative"><input onChange={e=>setSearch(e.target.value)} placeholder="Buscar..." className="w-full p-2 rounded text-black"/><span className="absolute right-2 top-2 text-gray-500"><Icon path={paths.search}/></span></div>
                             <div className="flex items-center gap-4 text-sm">
-                                <button onClick={()=>setAiOpen(!aiOpen)} className="flex flex-col items-center hover:text-yellow-400"><IconBot/><span className="text-xs">IA</span></button>
-                                <button onClick={()=>setView('cart')} className="flex flex-col items-center hover:text-yellow-400"><IconCart/><span className="text-xs font-bold">({cart.length})</span></button>
-                                {user ? <div className="hidden md:block font-bold text-yellow-400">{user.name}</div> : <button onClick={()=>setView('login')} className="bg-yellow-400 text-gray-900 px-3 py-1 rounded font-bold text-xs">Login</button>}
+                                <button onClick={()=>setAiOpen(!aiOpen)} className="flex flex-col items-center hover:text-yellow-400"><Icon path={paths.bot}/><span className="text-xs">IA</span></button>
+                                <button onClick={()=>setView('cart')} className="flex flex-col items-center hover:text-yellow-400"><Icon path={paths.cart}/><span className="text-xs font-bold">({cart.length})</span></button>
+                                {user ? <div className="font-bold text-yellow-400 hidden md:block">{user.name}</div> : <button onClick={()=>setView('login')} className="bg-yellow-400 text-black px-2 py-1 rounded text-xs font-bold">Login</button>}
                             </div>
                         </div>
                         <div className="bg-gray-800 text-sm py-2 px-4 flex gap-4 overflow-x-auto">
                             <button onClick={()=>setView('home')} className="font-bold hover:text-yellow-400">Todo</button>
-                            <button onClick={()=>setView('deals')} className="hover:text-yellow-400 text-red-300 font-bold">Ofertas</button>
+                            <button onClick={()=>setView('deals')} className="hover:text-yellow-400 text-red-300">Ofertas</button>
+                            <button onClick={()=>setView('gift-cards')} className="hover:text-yellow-400 text-blue-300">Tarjetas</button>
                             <button onClick={tryToSell} className="hover:text-yellow-400 font-bold text-yellow-500 ml-auto border border-yellow-500 rounded px-2">Vender</button>
                         </div>
                     </header>
 
-                    {menuOpen && (
-                        <div className="fixed inset-0 z-50 flex">
-                            <div className="fixed inset-0 bg-black/50" onClick={()=>setMenuOpen(false)}></div>
-                            <div className="relative bg-white w-64 h-full shadow-xl p-4 flex flex-col animate-fade">
-                                <div className="flex justify-between items-center border-b pb-4 mb-4"><div className="font-bold text-lg flex items-center gap-2"><IconUser/> {user ? user.name : 'Invitado'}</div><button onClick={()=>setMenuOpen(false)}><IconX/></button></div>
-                                <nav className="space-y-2 flex-1">
-                                    <button onClick={()=>{setView('home');setMenuOpen(false)}} className="block w-full text-left p-2 hover:bg-gray-100 rounded">🏠 Inicio</button>
-                                    <button onClick={()=>{setView('cart');setMenuOpen(false)}} className="block w-full text-left p-2 hover:bg-gray-100 rounded">🛒 Carrito</button>
-                                    {user && <button onClick={()=>{alert('Mis Pedidos');setMenuOpen(false)}} className="block w-full text-left p-2 hover:bg-gray-100 rounded flex gap-2"><IconPackage/> Mis Pedidos</button>}
-                                    {user ? <button onClick={logout} className="bg-red-100 text-red-600 p-2 rounded font-bold w-full mt-4">Salir</button> : <button onClick={()=>{setView('login');setMenuOpen(false)}} className="bg-blue-600 text-white p-2 rounded font-bold w-full mt-4">Entrar</button>}
-                                </nav>
-                            </div>
-                        </div>
-                    )}
+                    {menuOpen && <div className="fixed inset-0 z-50 flex"><div className="fixed inset-0 bg-black/50" onClick={()=>setMenuOpen(false)}></div><div className="relative z-50 bg-white w-64 p-4 shadow-xl flex flex-col animate-fade h-full"><div className="flex justify-between border-b pb-4 mb-4 font-bold text-lg"><div className="flex gap-2"><Icon path={paths.user}/> {user?user.name:'Invitado'}</div><button onClick={()=>setMenuOpen(false)}><Icon path={paths.x}/></button></div><nav className="space-y-2 flex-1"><button onClick={()=>{setView('home');setMenuOpen(false)}} className="block w-full text-left p-2 hover:bg-gray-100 rounded">Inicio</button><button onClick={()=>{setView('cart');setMenuOpen(false)}} className="block w-full text-left p-2 hover:bg-gray-100 rounded">Carrito</button>{user && <button onClick={()=>{setView('orders');setMenuOpen(false)}} className="block w-full text-left p-2 hover:bg-gray-100 rounded flex gap-2"><Icon path={paths.package}/> Mis Pedidos</button>}</nav>{user?<button onClick={logout} className="bg-red-100 text-red-600 p-2 rounded font-bold w-full">Salir</button>:<button onClick={()=>{setView('login');setMenuOpen(false)}} className="bg-blue-600 text-white p-2 rounded font-bold w-full">Entrar</button>}</div></div>}
 
-                    {aiOpen && <div className="fixed top-16 right-2 w-72 h-80 bg-white shadow-2xl rounded-lg flex flex-col border z-50 animate-fade text-black"><div className="bg-blue-600 text-white p-2 flex justify-between font-bold"><span>Bot</span><button onClick={()=>setAiOpen(false)}><IconX/></button></div><div className="flex-1 p-2 overflow-y-auto">{aiMsg.map((m,i)=><div key={i} className={`p-2 rounded text-sm mb-2 ${m.role==='sys'?'bg-gray-100':'bg-blue-100 ml-auto'}`}>{m.text}</div>)}</div><form onSubmit={sendAi} className="p-2 border-t flex gap-1"><input value={aiIn} onChange={e=>setAiIn(e.target.value)} className="flex-1 border rounded p-1"/><button className="bg-blue-600 text-white p-1 rounded"><IconSend/></button></form></div>}
+                    {aiOpen && <div className="fixed top-16 right-2 w-72 h-80 bg-white shadow-2xl rounded border z-50 flex flex-col animate-fade text-black"><div className="bg-blue-600 text-white p-2 flex justify-between font-bold"><span>IA SAPS</span><button onClick={()=>setAiOpen(false)}><Icon path={paths.x}/></button></div><div className="flex-1 p-2 overflow-y-auto">{aiMsg.map((m,i)=><div key={i} className={`p-2 rounded text-sm mb-2 ${m.role==='sys'?'bg-gray-100':'bg-blue-100 ml-auto'}`}>{m.text}</div>)}</div><form onSubmit={sendAi} className="p-2 border-t flex gap-1"><input value={aiIn} onChange={e=>setAiIn(e.target.value)} className="flex-1 border rounded p-1"/><button className="bg-blue-600 text-white p-1 rounded"><Icon path={paths.send}/></button></form></div>}
 
                     <main className="container mx-auto p-4 flex-1 max-w-5xl">
                         {view === 'home' && (
                             <div className="space-y-6 animate-fade">
-                                {loading ? <p className="text-center py-10 text-gray-500">Cargando productos de la Nube...</p> : 
+                                {loading ? <p className="text-center py-10">Cargando productos...</p> : 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {products.length === 0 && <p className="col-span-4 text-center text-gray-500">Aún no hay productos. ¡Sé el primero en vender!</p>}
+                                    {products.length === 0 && <p className="col-span-4 text-center text-gray-500">Aún no hay productos.</p>}
                                     {products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())).map(p=>(
-                                        <div key={p.id} className="bg-white rounded shadow overflow-hidden flex flex-col group relative">
+                                        <div key={p.id} onClick={()=>openProduct(p)} className="bg-white rounded shadow overflow-hidden group relative cursor-pointer hover:shadow-lg transition">
                                             {p.discount && <span className="absolute top-1 right-1 bg-red-600 text-white text-[10px] px-2 rounded font-bold">OFERTA</span>}
                                             <img src={p.img} className="h-32 w-full object-cover bg-gray-200" onError={e=>e.target.src='https://via.placeholder.com/150'}/>
-                                            <div className="p-3 flex-1 flex flex-col">
+                                            <div className="p-3">
                                                 <h3 className="font-bold text-sm mb-1 line-clamp-2">{p.name}</h3>
                                                 <p className="text-xs text-gray-500 mb-2">Vendedor: {p.seller}</p>
-                                                <div className="mt-auto pt-2"><p className="text-lg font-bold">${p.price}</p><button onClick={()=>addCart(p)} className="w-full bg-yellow-400 text-xs font-bold py-2 rounded mt-2 hover:bg-yellow-500">Agregar</button></div>
+                                                <div className="mt-auto pt-2 flex justify-between items-center">
+                                                    <span className="text-lg font-bold">${p.price}</span>
+                                                    <button onClick={(e)=>addCart(e, p)} className="bg-yellow-400 text-xs font-bold px-2 py-1 rounded hover:bg-yellow-500">Agregar</button>
+                                                </div>
+                                                {/* BOTÓN DE BORRAR (Solo si eres el dueño) */}
+                                                {user && user.email === p.sellerEmail && <button onClick={(e)=>deleteProduct(e, p)} className="absolute top-2 left-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-700 z-10 shadow"><Icon path={paths.trash} size={16}/></button>}
                                             </div>
                                         </div>
                                     ))}
@@ -287,60 +316,40 @@
                             </div>
                         )}
 
-                        {view === 'sell' && (
-                            <div className="bg-white p-6 rounded shadow max-w-lg mx-auto border-t-4 border-green-600 animate-fade"><h2 className="text-xl font-bold mb-4">Vender al Mundo 🌍</h2><form onSubmit={publish} className="space-y-4"><input name="name" placeholder="Título" className="w-full p-2 border rounded" required/><div className="flex gap-2"><input name="price" type="number" placeholder="Precio" className="w-full p-2 border rounded" required/><select className="w-full p-2 border rounded bg-white"><option>Electrónica</option><option>Ropa</option></select></div><input name="img" placeholder="URL Imagen" className="w-full p-2 border rounded"/><button className="w-full bg-green-600 text-white font-bold py-3 rounded">Publicar Ahora</button></form></div>
-                        )}
-
-                        {view === 'cart' && <div className="bg-white p-4 rounded shadow animate-fade"><h2 className="text-xl font-bold mb-4 border-b pb-2">Carrito ({cart.length})</h2>{cart.length === 0 ? <p className="text-gray-500 text-center py-8">Vacío</p> : <>{cart.map((item,i)=><div key={i} className="flex justify-between py-3 border-b items-center"><span>{item.name}</span><span className="font-bold">${item.price}</span></div>)}<div className="mt-4 text-right"><p className="font-bold text-xl mb-4">Total: ${cart.reduce((a,b)=>a+b.price,0)}</p><button onClick={()=>setView('checkout')} className="bg-yellow-400 px-8 py-3 rounded font-bold">Pagar</button></div></>}</div>}
-                        
-                        {view === 'checkout' && (
-                            <div className="bg-white p-6 rounded shadow max-w-xl mx-auto animate-fade">
-                                <h2 className="text-xl font-bold mb-6 border-b pb-2">Finalizar Compra</h2>
-                                <form onSubmit={pay} className="space-y-4">
-                                    {!user && <div className="bg-blue-50 p-3 rounded text-sm text-blue-800 mb-4">Estás comprando como <b>Invitado</b>. <span className="underline cursor-pointer font-bold" onClick={()=>setView('login')}>Iniciar Sesión</span></div>}
-                                    {!user && <input placeholder="Tu Nombre Completo" className="w-full p-2 border rounded" required onChange={e=>setCheckout({...checkout, name:e.target.value})}/>}
-                                    
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-xs font-bold">País</label><select className="w-full border p-2 rounded bg-white" value={checkout.country} onChange={e=>setCheckout({...checkout, country:e.target.value, state:''})}><option value="">Selecciona</option>{Object.keys(countries).map(c=><option key={c}>{c}</option>)}</select></div>
-                                        <div><label className="text-xs font-bold">Estado</label><select className="w-full border p-2 rounded bg-white" disabled={!checkout.country}><option>Selecciona</option>{checkout.country && countries[checkout.country].map(s=><option key={s}>{s}</option>)}</select></div>
+                        {view === 'product' && selectedProduct && (
+                            <div className="bg-white p-6 rounded shadow animate-fade">
+                                <div className="flex justify-between items-start mb-4">
+                                    <button onClick={()=>setView('home')} className="text-blue-600 flex items-center gap-1"><Icon path={paths.back}/> Volver</button>
+                                    {user && user.email === selectedProduct.sellerEmail && <button onClick={(e)=>deleteProduct(e, selectedProduct)} className="text-red-500 flex items-center gap-1 border border-red-500 px-2 py-1 rounded hover:bg-red-50"><Icon path={paths.trash} size={16}/> Borrar Producto</button>}
+                                </div>
+                                <div className="flex flex-col md:flex-row gap-6">
+                                    <img src={selectedProduct.img} className="w-full md:w-1/2 h-64 object-cover rounded" onError={e=>e.target.src='https://via.placeholder.com/300'}/>
+                                    <div className="flex-1">
+                                        <h2 className="text-2xl font-bold mb-2">{selectedProduct.name}</h2>
+                                        <p className="text-3xl font-bold text-green-600 mb-4">${selectedProduct.price}</p>
+                                        <p className="text-gray-600 mb-4">{selectedProduct.description || "Sin descripción detallada."}</p>
+                                        {selectedProduct.stock && <p className="text-sm text-blue-600 mb-4">Stock: {selectedProduct.stock}</p>}
+                                        <p className="text-xs text-gray-400 mb-6">Vendedor: {selectedProduct.seller}</p>
+                                        <button onClick={(e)=>addCart(e, selectedProduct)} className="w-full bg-yellow-400 py-3 rounded font-bold text-lg hover:bg-yellow-500">Agregar al Carrito</button>
+                                        <div className="mt-8 pt-6 border-t"><h3 className="font-bold mb-3">Reseñas</h3>{user ? <form onSubmit={submitReview} className="mb-4 bg-gray-50 p-3 rounded"><textarea className="w-full p-2 border rounded mb-2" required onChange={e=>setNewReview({...newReview, text:e.target.value})} value={newReview.text}></textarea><div className="flex justify-between items-center"><select className="border p-1 rounded" onChange={e=>setNewReview({...newReview, stars:e.target.value})} value={newReview.stars}><option value="5">⭐⭐⭐⭐⭐</option><option value="4">⭐⭐⭐⭐</option><option value="3">⭐⭐⭐</option></select><button className="bg-blue-600 text-white px-3 py-1 rounded text-sm">Publicar</button></div></form> : <p className="text-sm text-gray-500 mb-4">Inicia sesión para reseñar.</p>}<div className="space-y-3">{reviews.length === 0 && <p className="text-gray-400 text-sm">No hay reseñas.</p>}{reviews.map(r=>(<div key={r.id} className="bg-gray-50 p-3 rounded"><div className="flex text-yellow-400 mb-1 text-xs">{"⭐".repeat(r.stars)}</div><p className="text-sm font-bold">{r.user}</p><p className="text-sm">{r.text}</p></div>))}</div></div>
                                     </div>
-                                    <input placeholder="Dirección completa" className="w-full p-2 border rounded" required value={checkout.address} onChange={e=>setCheckout({...checkout, address:e.target.value})}/>
-                                    
-                                    {/* SECCIÓN DE PAGO RESTAURADA */}
-                                    <div className="bg-gray-50 p-4 rounded border">
-                                        <h3 className="font-bold text-sm mb-3">Método de Pago</h3>
-                                        <div className="grid grid-cols-2 gap-4 mb-4">
-                                            <div onClick={() => setCheckout({...checkout, method: 'card'})} className={`border-2 p-3 rounded cursor-pointer flex flex-col items-center transition ${checkout.method === 'card' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}`}>
-                                                <IconCreditCard/>
-                                                <span className="font-bold mt-1">Tarjeta</span>
-                                            </div>
-                                            <div onClick={() => setCheckout({...checkout, method: 'cash'})} className={`border-2 p-3 rounded cursor-pointer flex flex-col items-center transition ${checkout.method === 'cash' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 hover:border-gray-300'}`}>
-                                                <IconMoney/>
-                                                <span className="font-bold mt-1">Efectivo</span>
-                                            </div>
-                                        </div>
-
-                                        {checkout.method === 'card' && (
-                                            <div className="space-y-3 animate-fade">
-                                                <input placeholder="Nombre en tarjeta" className="w-full p-2 border rounded bg-white" onChange={e=>setCheckout({...checkout, cardName:e.target.value})}/>
-                                                <input placeholder="Número de Tarjeta" className="w-full p-2 border rounded bg-white" onChange={e=>setCheckout({...checkout, cardNum:e.target.value})}/>
-                                                <div className="flex gap-2">
-                                                    <input placeholder="MM/AA" className="w-full p-2 border rounded bg-white" onChange={e=>setCheckout({...checkout, cardExp:e.target.value})}/>
-                                                    <input placeholder="CVV" className="w-full p-2 border rounded bg-white" onChange={e=>setCheckout({...checkout, cardCvv:e.target.value})}/>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <button className="w-full bg-yellow-400 px-6 py-3 rounded font-bold hover:bg-yellow-500 transition">Confirmar Pedido</button>
-                                </form>
-                                <button onClick={()=>setView('cart')} className="mt-4 text-blue-600 underline text-sm w-full text-center">Cancelar</button>
+                                </div>
                             </div>
                         )}
-                    
-                        {(view === 'deals' || view === 'gift-cards') && <div className="text-center py-10"><h2 className="text-xl font-bold">Próximamente</h2><button onClick={()=>setView('home')} className="text-blue-600 mt-4">Volver</button></div>}
+
+                        {view === 'sell' && <div className="bg-white p-6 rounded shadow max-w-lg mx-auto border-t-4 border-green-600 animate-fade"><h2 className="text-xl font-bold mb-4">Vender Producto</h2><form onSubmit={publish} className="space-y-4"><input name="name" placeholder="Título del Producto" className="w-full p-2 border rounded" required/><textarea name="description" placeholder="Descripción detallada" className="w-full p-2 border rounded h-24"></textarea><div className="flex gap-2"><input name="price" type="number" placeholder="Precio" className="w-full p-2 border rounded" required/><input name="stock" type="number" placeholder="Stock" className="w-full p-2 border rounded"/></div><div className="flex items-center gap-2"><input type="checkbox" name="discount" className="w-4 h-4"/><label>¿Es Oferta?</label></div><select name="category" className="w-full p-2 border rounded bg-white"><option>Electrónica</option><option>Ropa</option><option>Hogar</option></select><div className="border p-2 rounded bg-gray-50"><label className="block text-xs font-bold mb-1">Foto:</label><input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm"/>{uploadingImg && <img src={uploadingImg} className="mt-2 h-20 rounded border"/>}</div><button className="w-full bg-green-600 text-white font-bold py-3 rounded hover:bg-green-700">Publicar Ahora</button></form></div>}
+
+                        {view === 'cart' && <div className="bg-white p-4 rounded shadow animate-fade"><h2 className="text-xl font-bold mb-4 border-b pb-2">Carrito ({cart.length})</h2>{cart.length === 0 ? <p className="text-gray-500 text-center py-8">Vacío</p> : <>{cart.map((item,i)=><div key={i} className="flex justify-between py-3 border-b items-center"><span>{item.name}</span><span className="font-bold">${item.price}</span></div>)}<div className="mt-4 text-right"><p className="font-bold text-xl mb-4">Total: ${cart.reduce((a,b)=>a+b.price,0)}</p><button onClick={()=>setView('checkout')} className="bg-yellow-400 px-8 py-3 rounded font-bold">Pagar</button></div></>}</div>}
+
+                        {view === 'checkout' && <div className="bg-white p-6 rounded shadow max-w-xl mx-auto animate-fade"><h2 className="text-xl font-bold mb-6">Finalizar</h2><form onSubmit={pay} className="space-y-4">{!user && <input placeholder="Nombre" className="w-full p-2 border rounded" required onChange={e=>setCheckout({...checkout, name:e.target.value})}/>}<input placeholder="Dirección" className="w-full p-2 border rounded" required onChange={e=>setCheckout({...checkout, address:e.target.value})}/><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold">País</label><select className="w-full border p-2 rounded bg-white" value={checkout.country} onChange={e=>setCheckout({...checkout, country:e.target.value})}><option value="">Selecciona</option>{Object.keys(countriesData).map(c=><option key={c}>{c}</option>)}</select></div><div><label className="text-xs font-bold">Estado</label><select className="w-full border p-2 rounded bg-white" disabled={!checkout.country}><option>Selecciona</option>{checkout.country && countriesData[checkout.country].map(s=><option key={s}>{s}</option>)}</select></div></div><div className="bg-gray-50 p-4 rounded border"><h3 className="font-bold text-sm mb-3">Método de Pago</h3><div className="grid grid-cols-2 gap-4 mb-4"><div onClick={()=>setCheckout({...checkout, method:'card'})} className={`border-2 p-3 rounded cursor-pointer flex flex-col items-center ${checkout.method==='card'?'border-blue-500 bg-blue-50':''}`}><Icon path={paths.card}/><span className="font-bold">Tarjeta</span></div><div onClick={()=>setCheckout({...checkout, method:'cash'})} className={`border-2 p-3 rounded cursor-pointer flex flex-col items-center ${checkout.method==='cash'?'border-green-500 bg-green-50':''}`}><Icon path={paths.money}/><span className="font-bold">Efectivo</span></div></div>{checkout.method === 'cash' && <div className="mb-4"><p className="text-sm font-bold mb-2">Tienda:</p><select className="w-full p-2 border rounded bg-white" onChange={e=>setCheckout({...checkout, store:e.target.value})}><option value="">-- Selecciona --</option><option value="Oxxo">Oxxo</option><option value="7 Eleven">7 Eleven</option></select></div>}{checkout.method==='card' && <div className="space-y-2"><input placeholder="Número Tarjeta" className="w-full p-2 border rounded" onChange={e=>setCheckout({...checkout, cardNum:e.target.value})}/><input placeholder="CVV" className="w-full p-2 border rounded" onChange={e=>setCheckout({...checkout, cardCvv:e.target.value})}/></div>}</div><button className="w-full bg-yellow-400 px-6 py-3 rounded font-bold">Confirmar</button></form><button onClick={()=>setView('cart')} className="mt-4 text-blue-600 underline text-sm w-full text-center">Cancelar</button></div>}
+
+                        {view === 'deals' && <div className="animate-fade"><h2 className="text-xl font-bold text-red-600 mb-4">Ofertas del Día 🔥</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-4">{products.filter(p=>p.discount).map(p=>(<div key={p.id} onClick={()=>openProduct(p)} className="bg-white rounded shadow p-3 cursor-pointer hover:shadow-lg"><img src={p.img} className="h-32 w-full object-cover mb-2 rounded"/><p className="font-bold text-sm">{p.name}</p><p className="text-red-600 font-bold">${p.price}</p><button onClick={(e)=>addCart(e, p)} className="w-full bg-yellow-400 py-1 rounded mt-2 text-xs font-bold">Agregar</button></div>))}</div></div>}
+
+                        {view === 'gift-cards' && <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade">{[200,500,1000].map(a=><div key={a} className="bg-white p-6 rounded shadow flex flex-col items-center border-2 border-blue-100"><Icon path={paths.gift}/><div className="bg-blue-600 w-full h-24 rounded my-4 flex items-center justify-center text-white text-3xl font-bold">${a}</div><button onClick={(e)=>addCart(e, {id:`gc${a}`, name:`Tarjeta $${a}`, price:a})} className="w-full bg-yellow-400 py-2 rounded font-bold">Agregar</button></div>)}</div>}
+
+                        {view === 'orders' && <div className="bg-white p-4 rounded shadow animate-fade"><h2 className="text-xl font-bold mb-4">Mis Pedidos</h2>{orders.length === 0 ? <p className="text-gray-500">Aún no has hecho pedidos.</p> : <div className="space-y-4">{orders.map(o => (<div key={o.id} className="border p-4 rounded flex flex-col bg-gray-50"><div className="flex justify-between mb-2"><p className="font-bold">{new Date(o.fecha).toLocaleDateString()}</p><p className="text-green-600 font-bold">${o.total}</p></div><ul className="text-sm text-gray-600 list-disc list-inside">{o.items.map((i,x)=><li key={x}>{i.name}</li>)}</ul>{o.reference && <div className="mt-2 p-2 bg-white border border-dashed text-center text-xs font-mono">{o.reference}</div>}</div>))}</div>}<button onClick={()=>setView('home')} className="mt-6 text-blue-600 underline">Volver a la tienda</button></div>}
                     </main>
-                    <footer className="bg-gray-900 text-white text-center p-6 text-xs mt-auto">© 2025 SAPS Inc. - Hecho para Thiago</footer>
+                    <footer className="bg-gray-900 text-white text-center p-6 text-xs mt-auto">© 2025 SAPS Inc. - Hecho por Thiago</footer>
                 </div>
             );
         }
@@ -350,6 +359,3 @@
     </script>
 </body>
 </html>
-
-
-
